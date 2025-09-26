@@ -1,26 +1,50 @@
+
 import { StyleSheet, ViewStyle, TextStyle } from 'react-native';
 
 export const colors = {
-  primary: '#162456',    // Material Blue
-  secondary: '#193cb8',  // Darker Blue
-  accent: '#64B5F6',     // Light Blue
-  background: '#101824',  // Keeping dark background
-  backgroundAlt: '#162133',  // Keeping dark background
-  text: '#e3e3e3',       // Keeping light text
-  grey: '#90CAF9',       // Light Blue Grey
-  card: '#193cb8',       // Keeping dark card background
+  primary: '#2196F3',      // Blue for interactive elements
+  secondary: '#1976D2',    // Darker blue
+  accent: '#4CAF50',       // Green for active warranties
+  background: '#FFFFFF',   // White background
+  backgroundAlt: '#F5F5F5', // Light gray
+  text: '#212121',         // Dark gray/black text
+  textSecondary: '#757575', // Secondary text
+  success: '#4CAF50',      // Green for active warranties
+  warning: '#FF9800',      // Orange for expiring soon
+  error: '#F44336',        // Red for expired warranties
+  grey: '#E0E0E0',         // Light grey for borders
+  card: '#FFFFFF',         // White card background
+  shadow: 'rgba(0, 0, 0, 0.1)', // Shadow color
 };
 
 export const buttonStyles = StyleSheet.create({
-  instructionsButton: {
+  primary: {
     backgroundColor: colors.primary,
-    alignSelf: 'center',
-    width: '100%',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  backButton: {
+  secondary: {
     backgroundColor: colors.backgroundAlt,
-    alignSelf: 'center',
-    width: '100%',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.grey,
+  },
+  text: {
+    color: colors.background,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  textSecondary: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
@@ -35,55 +59,86 @@ export const commonStyles = StyleSheet.create({
     backgroundColor: colors.background,
     width: '100%',
     height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   content: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    maxWidth: 800,
-    width: '100%',
+    paddingHorizontal: 20,
+    paddingTop: 20,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '800',
-    textAlign: 'center',
+    fontSize: 28,
+    fontWeight: '700',
     color: colors.text,
-    marginBottom: 10
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 16,
   },
   text: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '400',
     color: colors.text,
-    marginBottom: 8,
     lineHeight: 24,
-    textAlign: 'center',
+  },
+  textSecondary: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
   section: {
-    width: '100%',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  buttonContainer: {
-    width: '100%',
-    alignItems: 'center',
-    paddingHorizontal: 20,
+    marginBottom: 24,
   },
   card: {
-    backgroundColor: colors.backgroundAlt,
-    borderColor: colors.grey,
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    boxShadow: `0px 2px 8px ${colors.shadow}`,
+    elevation: 3,
     borderWidth: 1,
-    borderRadius: 10,
-    padding: 10,
-    marginVertical: 8,
-    width: '100%',
-    boxShadow: '0px 2px 3px rgba(0, 0, 0, 0.1)',
-    elevation: 2,
+    borderColor: colors.grey,
   },
-  icon: {
-    width: 60,
-    height: 60,
-    tintColor: "white",
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  center: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.grey,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colors.text,
+    backgroundColor: colors.background,
+    marginBottom: 16,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 32,
   },
 });
