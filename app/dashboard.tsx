@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PieChart, BarChart } from 'react-native-chart-kit';
@@ -26,11 +26,7 @@ export default function DashboardScreen() {
     totalValue: 0,
   });
 
-  useEffect(() => {
-    calculateAnalytics();
-  }, [items]);
-
-  const calculateAnalytics = () => {
+  const calculateAnalytics = useCallback(() => {
     let active = 0;
     let expiring = 0;
     let expired = 0;
@@ -58,7 +54,11 @@ export default function DashboardScreen() {
     });
 
     setAnalytics({ active, expiring, expired, totalValue });
-  };
+  }, [items]);
+
+  useEffect(() => {
+    calculateAnalytics();
+  }, [calculateAnalytics]);
 
   const pieData = [
     {

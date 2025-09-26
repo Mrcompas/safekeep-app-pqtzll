@@ -184,7 +184,11 @@ export const cancelWarrantyNotification = async (itemId: string): Promise<void> 
       `${itemId}_expiry`,
     ];
     
-    await Notifications.cancelScheduledNotificationsAsync(identifiers);
+    // Use the correct method name for canceling multiple notifications
+    for (const identifier of identifiers) {
+      await Notifications.cancelScheduledNotificationAsync(identifier);
+    }
+    
     console.log('Cancelled notifications for item:', itemId);
   } catch (error) {
     console.log('Error cancelling warranty notification:', error);
