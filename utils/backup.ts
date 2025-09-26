@@ -50,7 +50,7 @@ export const exportToCSV = async (items: Item[]): Promise<string> => {
     const fileUri = `${FileSystem.documentDirectory}${fileName}`;
     
     await FileSystem.writeAsStringAsync(fileUri, csvContent, {
-      encoding: FileSystem.EncodingType.UTF8,
+      encoding: 'utf8',
     });
 
     console.log('CSV export created:', fileUri);
@@ -71,7 +71,7 @@ export const exportToPDF = async (items: Item[]): Promise<string> => {
     const fileUri = `${FileSystem.documentDirectory}${fileName}`;
     
     await FileSystem.writeAsStringAsync(fileUri, htmlContent, {
-      encoding: FileSystem.EncodingType.UTF8,
+      encoding: 'utf8',
     });
 
     console.log('PDF export created:', fileUri);
@@ -191,7 +191,7 @@ export const createBackup = async (items: Item[]): Promise<BackupData> => {
     const fileUri = `${FileSystem.documentDirectory}${fileName}`;
     
     await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(backupData, null, 2), {
-      encoding: FileSystem.EncodingType.UTF8,
+      encoding: 'utf8',
     });
 
     console.log('Backup created:', fileUri);
@@ -214,7 +214,7 @@ export const restoreFromBackup = async (): Promise<BackupData | null> => {
     }
 
     const fileContent = await FileSystem.readAsStringAsync(result.assets[0].uri, {
-      encoding: FileSystem.EncodingType.UTF8,
+      encoding: 'utf8',
     });
 
     const backupData: BackupData = JSON.parse(fileContent);
