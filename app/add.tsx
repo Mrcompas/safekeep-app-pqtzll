@@ -1,48 +1,43 @@
 
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Alert, KeyboardAvoidingView, Platform, TouchableOpacity, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { Item, ItemFormData } from '../types/item';
-import { saveItem } from '../utils/storage';
-import { scheduleWarrantyNotification } from '../utils/notifications';
-import { showImagePickerOptions } from '../utils/camera';
-import { useAuth } from '../hooks/useAuth';
-import { commonStyles, colors, buttonStyles } from '../styles/commonStyles';
-import TextInput from '../components/TextInput';
 import Button from '../components/Button';
+import TextInput from '../components/TextInput';
+import { commonStyles, colors, buttonStyles } from '../styles/commonStyles';
 import DatePicker from '../components/DatePicker';
 import WarrantySelector from '../components/WarrantySelector';
+import BarcodeScanner from '../components/BarcodeScanner';
+import { View, Text, ScrollView, Alert, KeyboardAvoidingView, Platform, TouchableOpacity, Image } from 'react-native';
+import React, { useState } from 'react';
+import { saveItem } from '../utils/storage';
+import { showImagePickerOptions } from '../utils/camera';
+import { useAuth } from '../hooks/useAuth';
+import { router } from 'expo-router';
 import Icon from '../components/Icon';
+import { scheduleWarrantyNotification } from '../utils/notifications';
+import { Item, ItemFormData } from '../types/item';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AddScreen() {
-  console.log('AddScreen rendered');
-
-  const { authState } = useAuth();
   const [formData, setFormData] = useState<ItemFormData>({
     productName: '',
     purchaseDate: new Date(),
     warrantyLength: 12,
     storeName: '',
     receiptImageUri: undefined,
+    price: undefined,
+    barcode: undefined,
   });
-  const [saving, setSaving] = useState(false);
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [priceText, setPriceText] = useState('');
+  
+  const { user } = useAuth();
 
   const validateForm = (): boolean => {
     if (!formData.productName.trim()) {
-      Alert.alert('Error', 'Please enter a product name.');
+      Alert.alert('Error', 'Please enter a product name');
       return false;
     }
     if (!formData.storeName.trim()) {
-      Alert.alert('Error', 'Please enter a store name.');
-      return false;
-    }
-    if (!formData.purchaseDate) {
-      Alert.alert('Error', 'Please select a purchase date.');
-      return false;
-    }
-    if (!formData.warrantyLength || formData.warrantyLength <= 0) {
-      Alert.alert('Error', 'Please select a warranty length.');
+      Alert.alert('Error', 'Please enter a store name');
       return false;
     }
     return true;
@@ -51,246 +46,215 @@ export default function AddScreen() {
   const handleSave = async () => {
     if (!validateForm()) return;
 
-    setSaving(true);
     try {
-      console.log('Saving item:', formData);
-
+      const price = priceText ? parseFloat(priceText) : undefined;
+      
       const newItem: Item = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        id: Date.now().toString(),
         productName: formData.productName.trim(),
         purchaseDate: formData.purchaseDate,
         warrantyLength: formData.warrantyLength,
         storeName: formData.storeName.trim(),
         receiptImageUri: formData.receiptImageUri,
-        userId: authState.user?.id, // Associate with current user if logged in
+        userId: user?.id,
         createdAt: new Date(),
         updatedAt: new Date(),
+        price,
+        barcode: formData.barcode,
       };
 
       await saveItem(newItem);
-      console.log('Item saved successfully');
-
-      // Schedule notification for warranty expiration
-      try {
-        const expirationDate = new Date(newItem.purchaseDate);
-        expirationDate.setMonth(expirationDate.getMonth() + newItem.warrantyLength);
-        
-        const notificationId = await scheduleWarrantyNotification(
-          newItem.id,
-          newItem.productName,
-          expirationDate
-        );
-        
-        if (notificationId) {
-          console.log('Notification scheduled for item:', newItem.productName);
-        }
-      } catch (notificationError) {
-        console.error('Error scheduling notification:', notificationError);
-        // Don't fail the save if notification scheduling fails
-      }
-
-      Alert.alert(
-        'Success',
-        'Item saved successfully!',
-        [
-          {
-            text: 'Add Another',
-            onPress: () => {
-              setFormData({
-                productName: '',
-                purchaseDate: new Date(),
-                warrantyLength: 12,
-                storeName: '',
-                receiptImageUri: undefined,
-              });
-            },
-          },
-          {
-            text: 'View Items',
-            onPress: () => router.push('/'),
-          },
-        ]
-      );
+      await scheduleWarrantyNotification(newItem);
+      
+      Alert.alert('Success', 'Item added successfully!', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
     } catch (error) {
-      console.error('Error saving item:', error);
+      console.log('Error saving item:', error);
       Alert.alert('Error', 'Failed to save item. Please try again.');
-    } finally {
-      setSaving(false);
     }
   };
 
   const handleAttachReceipt = async () => {
     try {
-      const result = await showImagePickerOptions();
-      if (result.success && result.imageUri) {
-        setFormData({ ...formData, receiptImageUri: result.imageUri });
-      } else if (result.error && result.error !== 'Canceled') {
-        Alert.alert('Error', result.error);
+      const imageUri = await showImagePickerOptions();
+      if (imageUri) {
+        setFormData(prev => ({ ...prev, receiptImageUri: imageUri }));
       }
     } catch (error) {
-      console.error('Error attaching receipt:', error);
-      Alert.alert('Error', 'Failed to attach receipt. Please try again.');
+      console.log('Error attaching receipt:', error);
+      Alert.alert('Error', 'Failed to attach receipt');
     }
   };
 
   const handleRemoveReceipt = () => {
-    Alert.alert(
-      'Remove Receipt',
-      'Are you sure you want to remove the receipt photo?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Remove', 
-          style: 'destructive',
-          onPress: () => setFormData({ ...formData, receiptImageUri: undefined })
-        },
-      ]
-    );
+    setFormData(prev => ({ ...prev, receiptImageUri: undefined }));
+  };
+
+  const handleBarcodeScan = (productName: string) => {
+    setFormData(prev => ({ ...prev, productName }));
   };
 
   const handleCancel = () => {
-    if (formData.productName || formData.storeName || formData.receiptImageUri) {
-      Alert.alert(
-        'Discard Changes',
-        'Are you sure you want to discard your changes?',
-        [
-          { text: 'Keep Editing', style: 'cancel' },
-          { 
-            text: 'Discard', 
-            style: 'destructive',
-            onPress: () => router.back()
-          },
-        ]
-      );
-    } else {
-      router.back();
-    }
+    router.back();
   };
 
   return (
-    <SafeAreaView style={commonStyles.container}>
+    <SafeAreaView style={[commonStyles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
       >
-        <ScrollView 
-          style={commonStyles.content} 
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={{ paddingBottom: 40 }}>
-            <Text style={commonStyles.title}>Add New Item</Text>
-            <Text style={[commonStyles.textSecondary, { marginBottom: 32 }]}>
-              Enter the details of your product to track its warranty.
-            </Text>
+        <ScrollView style={commonStyles.container} showsVerticalScrollIndicator={false}>
+          <View style={{ padding: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
+              <TouchableOpacity onPress={handleCancel} style={{ marginRight: 16 }}>
+                <Icon name="arrow-back" size={24} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={[commonStyles.title, { flex: 1 }]}>Add New Item</Text>
+            </View>
 
-            <TextInput
-              label="Product Name"
-              value={formData.productName}
-              onChangeText={(text) => setFormData({ ...formData, productName: text })}
-              placeholder="e.g., iPhone 15 Pro, Samsung TV"
-              required
-            />
+            <View style={{ marginBottom: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={[commonStyles.textSecondary, { fontSize: 16, fontWeight: '500', flex: 1 }]}>
+                  Product Name
+                </Text>
+                <TouchableOpacity
+                  style={styles.scanButton}
+                  onPress={() => setShowBarcodeScanner(true)}
+                >
+                  <Icon name="barcode-outline" size={16} color={colors.primary} />
+                  <Text style={styles.scanButtonText}>Scan</Text>
+                </TouchableOpacity>
+              </View>
+              <TextInput
+                value={formData.productName}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, productName: text }))}
+                placeholder="Enter product name"
+              />
+            </View>
 
             <DatePicker
               label="Purchase Date"
               value={formData.purchaseDate}
-              onChange={(date) => setFormData({ ...formData, purchaseDate: date })}
+              onChange={(date) => setFormData(prev => ({ ...prev, purchaseDate: date }))}
             />
 
             <WarrantySelector
               label="Warranty Length"
               value={formData.warrantyLength}
-              onChange={(months) => setFormData({ ...formData, warrantyLength: months })}
+              onChange={(months) => setFormData(prev => ({ ...prev, warrantyLength: months }))}
             />
 
             <TextInput
               label="Store Name"
               value={formData.storeName}
-              onChangeText={(text) => setFormData({ ...formData, storeName: text })}
-              placeholder="e.g., Best Buy, Amazon, Apple Store"
-              required
+              onChangeText={(text) => setFormData(prev => ({ ...prev, storeName: text }))}
+              placeholder="Where did you buy this?"
             />
 
-            {/* Receipt Photo Section */}
-            <View style={{ marginTop: 8 }}>
-              <Text style={[commonStyles.inputLabel, { marginBottom: 12 }]}>
+            <TextInput
+              label="Price (Optional)"
+              value={priceText}
+              onChangeText={setPriceText}
+              placeholder="0.00"
+              keyboardType="decimal-pad"
+            />
+
+            {/* Receipt Section */}
+            <View style={{ marginBottom: 24 }}>
+              <Text style={[commonStyles.textSecondary, { marginBottom: 8, fontSize: 16, fontWeight: '500' }]}>
                 Receipt Photo (Optional)
               </Text>
               
               {formData.receiptImageUri ? (
-                <View style={commonStyles.card}>
-                  <View style={[commonStyles.row, { marginBottom: 12 }]}>
-                    <Text style={[commonStyles.text, { fontWeight: '600' }]}>Receipt Attached</Text>
-                    <TouchableOpacity onPress={handleRemoveReceipt}>
-                      <Icon name="trash" size={20} color={colors.error} />
-                    </TouchableOpacity>
-                  </View>
-                  
-                  <Image
-                    source={{ uri: formData.receiptImageUri }}
-                    style={{
-                      width: '100%',
-                      height: 200,
-                      borderRadius: 8,
-                      backgroundColor: colors.cardBackground,
-                    }}
-                    resizeMode="cover"
-                  />
-                  
-                  <TouchableOpacity
-                    style={[buttonStyles.secondary, { marginTop: 12 }]}
-                    onPress={handleAttachReceipt}
-                  >
-                    <Text style={buttonStyles.textSecondary}>Change Photo</Text>
+                <View style={styles.receiptContainer}>
+                  <Image source={{ uri: formData.receiptImageUri }} style={styles.receiptImage} />
+                  <TouchableOpacity style={styles.removeReceiptButton} onPress={handleRemoveReceipt}>
+                    <Icon name="close-circle" size={24} color={colors.error} />
                   </TouchableOpacity>
                 </View>
               ) : (
-                <TouchableOpacity
-                  style={[
-                    commonStyles.card,
-                    {
-                      borderStyle: 'dashed',
-                      borderWidth: 2,
-                      borderColor: colors.border,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      paddingVertical: 32,
-                    }
-                  ]}
-                  onPress={handleAttachReceipt}
-                >
-                  <Icon name="camera" size={32} color={colors.textSecondary} style={{ marginBottom: 8 }} />
-                  <Text style={[commonStyles.text, { fontWeight: '600', marginBottom: 4 }]}>
-                    Attach Receipt
-                  </Text>
-                  <Text style={[commonStyles.textSecondary, { textAlign: 'center' }]}>
-                    Take a photo or choose from library{'\n'}to keep proof of purchase
-                  </Text>
+                <TouchableOpacity style={styles.attachButton} onPress={handleAttachReceipt}>
+                  <Icon name="camera-outline" size={24} color={colors.primary} />
+                  <Text style={styles.attachButtonText}>Attach Receipt</Text>
                 </TouchableOpacity>
               )}
             </View>
 
-            <View style={{ marginTop: 32, gap: 16 }}>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
               <Button
-                text={saving ? 'Saving...' : 'Save Item'}
-                onPress={handleSave}
-                disabled={saving}
-                style={buttonStyles.primary}
-                textStyle={buttonStyles.text}
-              />
-              
-              <Button
-                text="Cancel"
+                title="Cancel"
                 onPress={handleCancel}
-                disabled={saving}
-                style={buttonStyles.secondary}
-                textStyle={buttonStyles.textSecondary}
+                style={[buttonStyles.secondary, { flex: 1 }]}
+                textStyle={{ color: colors.text }}
+              />
+              <Button
+                title="Save Item"
+                onPress={handleSave}
+                style={[buttonStyles.primary, { flex: 1 }]}
               />
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <BarcodeScanner
+        visible={showBarcodeScanner}
+        onClose={() => setShowBarcodeScanner(false)}
+        onScan={handleBarcodeScan}
+      />
     </SafeAreaView>
   );
 }
+
+const styles = {
+  scanButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colors.primary + '20',
+    borderRadius: 8,
+    gap: 4,
+  },
+  scanButtonText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '500' as const,
+  },
+  receiptContainer: {
+    position: 'relative' as const,
+    alignSelf: 'flex-start' as const,
+  },
+  receiptImage: {
+    width: 120,
+    height: 160,
+    borderRadius: 8,
+    backgroundColor: colors.grey,
+  },
+  removeReceiptButton: {
+    position: 'absolute' as const,
+    top: -8,
+    right: -8,
+    backgroundColor: colors.background,
+    borderRadius: 12,
+  },
+  attachButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    borderStyle: 'dashed' as const,
+    borderRadius: 12,
+    backgroundColor: colors.primary + '10',
+    gap: 8,
+  },
+  attachButtonText: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: '500' as const,
+  },
+};

@@ -1,20 +1,11 @@
 
 import * as Notifications from 'expo-notifications';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Item, NotificationSettings } from '../types/item';
 
 const NOTIFICATIONS_ENABLED_KEY = 'notifications_enabled';
-
-export const cancelWarrantyNotification = async (itemId: string): Promise<void> => {
-  try {
-    console.log('Canceling notification for item:', itemId);
-    await Notifications.cancelScheduledNotificationAsync(itemId);
-    console.log('Notification canceled successfully');
-  } catch (error) {
-    console.error('Error canceling notification:', error);
-    throw error;
-  }
-};
+const NOTIFICATION_SETTINGS_KEY = 'notification_settings';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -27,17 +18,6 @@ Notifications.setNotificationHandler({
 
 export const requestNotificationPermissions = async (): Promise<boolean> => {
   try {
-    console.log('Requesting notification permissions...');
-    
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('warranty-alerts', {
-        name: 'Warranty Alerts',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#2196F3',
-      });
-    }
-
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
@@ -46,106 +26,216 @@ export const requestNotificationPermissions = async (): Promise<boolean> => {
       finalStatus = status;
     }
 
-    console.log('Notification permission status:', finalStatus);
-    return finalStatus === 'granted';
+    if (finalStatus !== 'granted') {
+      console.log('Notification permission not granted');
+      return false;
+    }
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('warranty-alerts', {
+        name: 'Warranty Alerts',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+      });
+    }
+
+    return true;
   } catch (error) {
-    console.error('Error requesting notification permissions:', error);
+    console.log('Error requesting notification permissions:', error);
     return false;
-  }
-};
-
-export const scheduleWarrantyNotification = async (
-  itemId: string,
-  productName: string,
-  expirationDate: Date
-): Promise<string | null> => {
-  try {
-    const notificationsEnabled = await getNotificationsEnabled();
-    if (!notificationsEnabled) {
-      console.log('Notifications disabled, skipping scheduling');
-      return null;
-    }
-
-    // Calculate notification date (30 days before expiration)
-    const notificationDate = new Date(expirationDate);
-    notificationDate.setDate(notificationDate.getDate() - 30);
-
-    // Don't schedule if notification date is in the past
-    if (notificationDate <= new Date()) {
-      console.log('Notification date is in the past, skipping');
-      return null;
-    }
-
-    console.log(`Scheduling notification for ${productName} on ${notificationDate}`);
-
-    const notificationId = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'Warranty Expiring Soon',
-        body: `⚠️ ${productName} warranty expires in 30 days`,
-        data: { itemId, productName, type: 'warranty_expiring' },
-        sound: true,
-      },
-      trigger: {
-        date: notificationDate,
-      },
-    });
-
-    console.log('Scheduled notification with ID:', notificationId);
-    return notificationId;
-  } catch (error) {
-    console.error('Error scheduling notification:', error);
-    return null;
-  }
-};
-
-export const cancelNotification = async (notificationId: string): Promise<void> => {
-  try {
-    await Notifications.cancelScheduledNotificationAsync(notificationId);
-    console.log('Cancelled notification:', notificationId);
-  } catch (error) {
-    console.error('Error cancelling notification:', error);
-  }
-};
-
-export const cancelAllNotifications = async (): Promise<void> => {
-  try {
-    await Notifications.cancelAllScheduledNotificationsAsync();
-    console.log('Cancelled all notifications');
-  } catch (error) {
-    console.error('Error cancelling all notifications:', error);
-  }
-};
-
-export const setNotificationsEnabled = async (enabled: boolean): Promise<void> => {
-  try {
-    await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, JSON.stringify(enabled));
-    console.log('Notifications enabled set to:', enabled);
-    
-    if (!enabled) {
-      await cancelAllNotifications();
-    }
-  } catch (error) {
-    console.error('Error setting notifications enabled:', error);
   }
 };
 
 export const getNotificationsEnabled = async (): Promise<boolean> => {
   try {
-    const value = await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
-    return value ? JSON.parse(value) : true; // Default to enabled
+    const enabled = await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
+    return enabled === 'true';
   } catch (error) {
-    console.error('Error getting notifications enabled:', error);
-    return true;
+    console.log('Error getting notifications enabled:', error);
+    return false;
+  }
+};
+
+export const setNotificationsEnabled = async (enabled: boolean): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, enabled.toString());
+  } catch (error) {
+    console.log('Error setting notifications enabled:', error);
+  }
+};
+
+export const getNotificationSettings = async (): Promise<NotificationSettings> => {
+  try {
+    const settings = await AsyncStorage.getItem(NOTIFICATION_SETTINGS_KEY);
+    if (settings) {
+      return JSON.parse(settings);
+    }
+    // Default settings
+    return {
+      enabled: true,
+      thirtyDayAlert: true,
+      sevenDayAlert: true,
+      expirationDayAlert: true,
+    };
+  } catch (error) {
+    console.log('Error getting notification settings:', error);
+    return {
+      enabled: true,
+      thirtyDayAlert: true,
+      sevenDayAlert: true,
+      expirationDayAlert: true,
+    };
+  }
+};
+
+export const setNotificationSettings = async (settings: NotificationSettings): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(NOTIFICATION_SETTINGS_KEY, JSON.stringify(settings));
+  } catch (error) {
+    console.log('Error setting notification settings:', error);
+  }
+};
+
+export const scheduleWarrantyNotification = async (item: Item): Promise<void> => {
+  try {
+    const settings = await getNotificationSettings();
+    if (!settings.enabled) {
+      return;
+    }
+
+    const purchaseDate = new Date(item.purchaseDate);
+    const expirationDate = new Date(purchaseDate);
+    expirationDate.setMonth(expirationDate.getMonth() + item.warrantyLength);
+
+    const now = new Date();
+
+    // Cancel existing notifications for this item
+    await cancelWarrantyNotification(item.id);
+
+    // Schedule 30-day notification
+    if (settings.thirtyDayAlert) {
+      const thirtyDaysBefore = new Date(expirationDate);
+      thirtyDaysBefore.setDate(thirtyDaysBefore.getDate() - 30);
+
+      if (thirtyDaysBefore > now) {
+        await Notifications.scheduleNotificationAsync({
+          identifier: `${item.id}_30days`,
+          content: {
+            title: '⚠️ Warranty Expiring Soon',
+            body: `${item.productName} warranty expires in 30 days`,
+            data: { itemId: item.id, type: '30days' },
+          },
+          trigger: {
+            date: thirtyDaysBefore,
+          },
+        });
+      }
+    }
+
+    // Schedule 7-day notification
+    if (settings.sevenDayAlert) {
+      const sevenDaysBefore = new Date(expirationDate);
+      sevenDaysBefore.setDate(sevenDaysBefore.getDate() - 7);
+
+      if (sevenDaysBefore > now) {
+        await Notifications.scheduleNotificationAsync({
+          identifier: `${item.id}_7days`,
+          content: {
+            title: '🚨 Warranty Expiring This Week',
+            body: `${item.productName} warranty expires in 7 days`,
+            data: { itemId: item.id, type: '7days' },
+          },
+          trigger: {
+            date: sevenDaysBefore,
+          },
+        });
+      }
+    }
+
+    // Schedule expiration day notification
+    if (settings.expirationDayAlert) {
+      if (expirationDate > now) {
+        await Notifications.scheduleNotificationAsync({
+          identifier: `${item.id}_expiry`,
+          content: {
+            title: '❌ Warranty Expired',
+            body: `${item.productName} warranty has expired today`,
+            data: { itemId: item.id, type: 'expiry' },
+          },
+          trigger: {
+            date: expirationDate,
+          },
+        });
+      }
+    }
+
+    console.log('Scheduled notifications for item:', item.productName);
+  } catch (error) {
+    console.log('Error scheduling warranty notification:', error);
+  }
+};
+
+export const cancelWarrantyNotification = async (itemId: string): Promise<void> => {
+  try {
+    const identifiers = [
+      `${itemId}_30days`,
+      `${itemId}_7days`,
+      `${itemId}_expiry`,
+    ];
+    
+    await Notifications.cancelScheduledNotificationsAsync(identifiers);
+    console.log('Cancelled notifications for item:', itemId);
+  } catch (error) {
+    console.log('Error cancelling warranty notification:', error);
+  }
+};
+
+export const snoozeNotification = async (itemId: string, type: string, hours: number = 24): Promise<void> => {
+  try {
+    const snoozeDate = new Date();
+    snoozeDate.setHours(snoozeDate.getHours() + hours);
+
+    await Notifications.scheduleNotificationAsync({
+      identifier: `${itemId}_${type}_snooze`,
+      content: {
+        title: '🔔 Warranty Reminder (Snoozed)',
+        body: `Don't forget about your ${type} warranty reminder`,
+        data: { itemId, type: `${type}_snooze` },
+      },
+      trigger: {
+        date: snoozeDate,
+      },
+    });
+
+    console.log(`Snoozed notification for ${hours} hours`);
+  } catch (error) {
+    console.log('Error snoozing notification:', error);
   }
 };
 
 export const getScheduledNotifications = async () => {
   try {
     const notifications = await Notifications.getAllScheduledNotificationsAsync();
-    console.log('Scheduled notifications:', notifications.length);
     return notifications;
   } catch (error) {
-    console.error('Error getting scheduled notifications:', error);
+    console.log('Error getting scheduled notifications:', error);
     return [];
+  }
+};
+
+export const rescheduleAllNotifications = async (items: Item[]): Promise<void> => {
+  try {
+    // Cancel all existing notifications
+    await Notifications.cancelAllScheduledNotificationsAsync();
+    
+    // Reschedule for all items
+    for (const item of items) {
+      await scheduleWarrantyNotification(item);
+    }
+    
+    console.log('Rescheduled all notifications');
+  } catch (error) {
+    console.log('Error rescheduling notifications:', error);
   }
 };
