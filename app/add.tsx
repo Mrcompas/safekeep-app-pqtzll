@@ -3,13 +3,14 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { commonStyles, colors, buttonStyles } from '../styles/commonStyles';
 import { Item, ItemFormData } from '../types/item';
 import { saveItem } from '../utils/storage';
+import { scheduleWarrantyNotification } from '../utils/notifications';
+import { commonStyles, colors, buttonStyles } from '../styles/commonStyles';
 import TextInput from '../components/TextInput';
+import Button from '../components/Button';
 import DatePicker from '../components/DatePicker';
 import WarrantySelector from '../components/WarrantySelector';
-import Button from '../components/Button';
 
 export default function AddScreen() {
   console.log('AddScreen rendered');
@@ -20,40 +21,35 @@ export default function AddScreen() {
     warrantyLength: 12,
     storeName: '',
   });
-
-  const [errors, setErrors] = useState<Partial<ItemFormData>>({});
-  const [isLoading, setIsLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const validateForm = (): boolean => {
-    const newErrors: Partial<ItemFormData> = {};
-
     if (!formData.productName.trim()) {
-      newErrors.productName = 'Product name is required';
+      Alert.alert('Error', 'Please enter a product name.');
+      return false;
     }
-
     if (!formData.storeName.trim()) {
-      newErrors.storeName = 'Store name is required';
+      Alert.alert('Error', 'Please enter a store name.');
+      return false;
     }
-
-    if (formData.purchaseDate > new Date()) {
-      newErrors.purchaseDate = 'Purchase date cannot be in the future';
+    if (!formData.purchaseDate) {
+      Alert.alert('Error', 'Please select a purchase date.');
+      return false;
     }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    if (!formData.warrantyLength || formData.warrantyLength <= 0) {
+      Alert.alert('Error', 'Please select a warranty length.');
+      return false;
+    }
+    return true;
   };
 
   const handleSave = async () => {
-    console.log('Save button pressed');
-    
-    if (!validateForm()) {
-      console.log('Form validation failed');
-      return;
-    }
+    if (!validateForm()) return;
 
-    setIsLoading(true);
-
+    setSaving(true);
     try {
+      console.log('Saving item:', formData);
+
       const newItem: Item = {
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
         productName: formData.productName.trim(),
@@ -65,76 +61,72 @@ export default function AddScreen() {
       };
 
       await saveItem(newItem);
-      
-      console.log('Item saved successfully:', newItem);
-      
+      console.log('Item saved successfully');
+
+      // Schedule notification for warranty expiration
+      try {
+        const expirationDate = new Date(newItem.purchaseDate);
+        expirationDate.setMonth(expirationDate.getMonth() + newItem.warrantyLength);
+        
+        const notificationId = await scheduleWarrantyNotification(
+          newItem.id,
+          newItem.productName,
+          expirationDate
+        );
+        
+        if (notificationId) {
+          console.log('Notification scheduled for item:', newItem.productName);
+        }
+      } catch (notificationError) {
+        console.error('Error scheduling notification:', notificationError);
+        // Don't fail the save if notification scheduling fails
+      }
+
       Alert.alert(
         'Success',
-        'Item added successfully!',
+        'Item saved successfully!',
         [
           {
-            text: 'OK',
+            text: 'Add Another',
             onPress: () => {
-              // Reset form
               setFormData({
                 productName: '',
                 purchaseDate: new Date(),
                 warrantyLength: 12,
                 storeName: '',
               });
-              setErrors({});
-              // Navigate to home screen
-              router.push('/');
             },
+          },
+          {
+            text: 'View Items',
+            onPress: () => router.push('/'),
           },
         ]
       );
     } catch (error) {
       console.error('Error saving item:', error);
-      Alert.alert(
-        'Error',
-        'Failed to save item. Please try again.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Error', 'Failed to save item. Please try again.');
     } finally {
-      setIsLoading(false);
+      setSaving(false);
     }
   };
 
   const handleCancel = () => {
-    console.log('Cancel button pressed');
-    
-    // Check if form has any data
-    const hasData = formData.productName.trim() || 
-                   formData.storeName.trim() || 
-                   formData.purchaseDate.toDateString() !== new Date().toDateString() ||
-                   formData.warrantyLength !== 12;
-
-    if (hasData) {
+    if (formData.productName || formData.storeName) {
       Alert.alert(
         'Discard Changes',
         'Are you sure you want to discard your changes?',
         [
           { text: 'Keep Editing', style: 'cancel' },
-          {
-            text: 'Discard',
+          { 
+            text: 'Discard', 
             style: 'destructive',
-            onPress: () => {
-              // Reset form and navigate back
-              setFormData({
-                productName: '',
-                purchaseDate: new Date(),
-                warrantyLength: 12,
-                storeName: '',
-              });
-              setErrors({});
-              router.push('/');
-            },
+            onPress: () => router.back()
           },
         ]
       );
     } else {
-      router.push('/');
+      router.back();
     }
   };
 
@@ -149,75 +141,55 @@ export default function AddScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={{ paddingBottom: 100 }}>
+          <View style={{ paddingBottom: 40 }}>
             <Text style={commonStyles.title}>Add New Item</Text>
             <Text style={[commonStyles.textSecondary, { marginBottom: 32 }]}>
-              Enter the details of your product to track its warranty information.
+              Enter the details of your product to track its warranty.
             </Text>
 
-            <View style={commonStyles.card}>
-              <TextInput
-                label="Product Name"
-                value={formData.productName}
-                onChangeText={(text) => {
-                  setFormData(prev => ({ ...prev, productName: text }));
-                  if (errors.productName) {
-                    setErrors(prev => ({ ...prev, productName: undefined }));
-                  }
-                }}
-                placeholder="e.g., iPhone 15 Pro, Samsung TV, etc."
-                error={errors.productName}
-                autoCapitalize="words"
-                returnKeyType="next"
-              />
+            <TextInput
+              label="Product Name"
+              value={formData.productName}
+              onChangeText={(text) => setFormData({ ...formData, productName: text })}
+              placeholder="e.g., iPhone 15 Pro, Samsung TV"
+              required
+            />
 
-              <DatePicker
-                label="Purchase Date"
-                value={formData.purchaseDate}
-                onChange={(date) => {
-                  setFormData(prev => ({ ...prev, purchaseDate: date }));
-                  if (errors.purchaseDate) {
-                    setErrors(prev => ({ ...prev, purchaseDate: undefined }));
-                  }
-                }}
-              />
+            <DatePicker
+              label="Purchase Date"
+              value={formData.purchaseDate}
+              onChange={(date) => setFormData({ ...formData, purchaseDate: date })}
+            />
 
-              <WarrantySelector
-                label="Warranty Length"
-                value={formData.warrantyLength}
-                onChange={(months) => {
-                  setFormData(prev => ({ ...prev, warrantyLength: months }));
-                }}
-              />
+            <WarrantySelector
+              label="Warranty Length"
+              value={formData.warrantyLength}
+              onChange={(months) => setFormData({ ...formData, warrantyLength: months })}
+            />
 
-              <TextInput
-                label="Store Name"
-                value={formData.storeName}
-                onChangeText={(text) => {
-                  setFormData(prev => ({ ...prev, storeName: text }));
-                  if (errors.storeName) {
-                    setErrors(prev => ({ ...prev, storeName: undefined }));
-                  }
-                }}
-                placeholder="e.g., Best Buy, Amazon, Apple Store, etc."
-                error={errors.storeName}
-                autoCapitalize="words"
-                returnKeyType="done"
-              />
-            </View>
+            <TextInput
+              label="Store Name"
+              value={formData.storeName}
+              onChangeText={(text) => setFormData({ ...formData, storeName: text })}
+              placeholder="e.g., Best Buy, Amazon, Apple Store"
+              required
+            />
 
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
+            <View style={{ marginTop: 32, gap: 16 }}>
+              <Button
+                text={saving ? 'Saving...' : 'Save Item'}
+                onPress={handleSave}
+                disabled={saving}
+                style={buttonStyles.primary}
+                textStyle={buttonStyles.text}
+              />
+              
               <Button
                 text="Cancel"
                 onPress={handleCancel}
-                style={[buttonStyles.secondary, { flex: 1 }]}
+                disabled={saving}
+                style={buttonStyles.secondary}
                 textStyle={buttonStyles.textSecondary}
-              />
-              <Button
-                text={isLoading ? "Saving..." : "Save Item"}
-                onPress={handleSave}
-                style={[buttonStyles.primary, { flex: 1 }]}
-                textStyle={buttonStyles.text}
               />
             </View>
           </View>

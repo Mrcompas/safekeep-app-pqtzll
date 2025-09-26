@@ -1,17 +1,18 @@
 
-import { Tabs, useGlobalSearchParams } from 'expo-router';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Platform, View, Text } from 'react-native';
-import { useEffect, useState } from 'react';
 import { setupErrorLogging } from '../utils/errorLogger';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '../styles/commonStyles';
+import { Tabs, useGlobalSearchParams } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useEffect, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { requestNotificationPermissions } from '../utils/notifications';
 
-const STORAGE_KEY = 'emulated_device';
+const STORAGE_KEY = 'emulate_device';
 
 function TabBarIcon({ name, color }: { name: keyof typeof Ionicons.glyphMap; color: string }) {
-  return <Ionicons size={24} name={name} color={color} />;
+  return <Ionicons size={28} style={{ marginBottom: -3 }} name={name} color={color} />;
 }
 
 function SafeKeepHeader() {
@@ -23,50 +24,70 @@ function SafeKeepHeader() {
 }
 
 export default function RootLayout() {
-  const { emulate } = useGlobalSearchParams<{ emulate?: string }>();
-  const [storedEmulate, setStoredEmulate] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState(false);
+  const { emulate } = useGlobalSearchParams();
 
   useEffect(() => {
-    // Set up global error logging
-    setupErrorLogging();
-
-    if (Platform.OS === 'web') {
-      // If there's a new emulate parameter, store it
-      if (emulate) {
-        localStorage.setItem(STORAGE_KEY, emulate);
-        setStoredEmulate(emulate);
-      } else {
-        // If no emulate parameter, try to get from localStorage
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          setStoredEmulate(stored);
+    const initializeApp = async () => {
+      try {
+        console.log('Initializing SafeKeep app...');
+        
+        // Setup error logging
+        setupErrorLogging();
+        
+        // Request notification permissions on app start
+        try {
+          await requestNotificationPermissions();
+          console.log('Notification permissions requested');
+        } catch (error) {
+          console.error('Error requesting notification permissions:', error);
         }
+        
+        console.log('App initialization complete');
+      } catch (error) {
+        console.error('Error during app initialization:', error);
+      } finally {
+        setIsReady(true);
       }
-    }
+    };
+
+    initializeApp();
   }, [emulate]);
 
+  if (!isReady) {
+    return (
+      <SafeAreaProvider>
+        <View style={[commonStyles.container, commonStyles.center]}>
+          <Text style={commonStyles.logo}>SafeKeep</Text>
+          <Text style={[commonStyles.textSecondary, { marginTop: 16 }]}>
+            Loading...
+          </Text>
+        </View>
+      </SafeAreaProvider>
+    );
+  }
+
   return (
-    <SafeAreaProvider>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeKeepHeader />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
         <Tabs
           screenOptions={{
-            headerShown: false,
             tabBarActiveTintColor: colors.primary,
-            tabBarInactiveTintColor: colors.textSecondary,
+            tabBarInactiveTintColor: colors.text,
             tabBarStyle: {
               backgroundColor: colors.tabBar,
               borderTopColor: colors.tabBarBorder,
               borderTopWidth: 1,
               paddingTop: 8,
               paddingBottom: Platform.OS === 'ios' ? 20 : 8,
-              height: Platform.OS === 'ios' ? 88 : 64,
+              height: Platform.OS === 'ios' ? 88 : 68,
             },
             tabBarLabelStyle: {
               fontSize: 12,
               fontWeight: '600',
               marginTop: 4,
             },
+            header: () => <SafeKeepHeader />,
           }}
         >
           <Tabs.Screen
@@ -90,8 +111,20 @@ export default function RootLayout() {
               tabBarIcon: ({ color }) => <TabBarIcon name="settings" color={color} />,
             }}
           />
+          <Tabs.Screen
+            name="add-item"
+            options={{
+              href: null, // Hide from tab bar
+            }}
+          />
+          <Tabs.Screen
+            name="item"
+            options={{
+              href: null, // Hide from tab bar
+            }}
+          />
         </Tabs>
-      </GestureHandlerRootView>
-    </SafeAreaProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
