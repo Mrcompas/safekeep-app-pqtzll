@@ -5,6 +5,17 @@ import { Platform } from 'react-native';
 
 const NOTIFICATIONS_ENABLED_KEY = 'notifications_enabled';
 
+export const cancelWarrantyNotification = async (itemId: string): Promise<void> => {
+  try {
+    console.log('Canceling notification for item:', itemId);
+    await Notifications.cancelScheduledNotificationAsync(itemId);
+    console.log('Notification canceled successfully');
+  } catch (error) {
+    console.error('Error canceling notification:', error);
+    throw error;
+  }
+};
+
 // Configure notification behavior
 Notifications.setNotificationHandler({
   handleNotification: async () => ({

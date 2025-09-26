@@ -123,6 +123,24 @@ export default function RootLayout() {
               href: null, // Hide from tab bar
             }}
           />
+          <Tabs.Screen
+            name="edit-item"
+            options={{
+              href: null, // Hide from tab bar
+            }}
+          />
+          <Tabs.Screen
+            name="auth"
+            options={{
+              href: null, // Hide from tab bar
+            }}
+          />
+          <Tabs.Screen
+            name="welcome"
+            options={{
+              href: null, // Hide from tab bar
+            }}
+          />
         </Tabs>
       </SafeAreaProvider>
     </GestureHandlerRootView>

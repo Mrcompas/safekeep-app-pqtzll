@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useWarrantyItems } from '../../hooks/useWarrantyItems';
@@ -121,6 +121,43 @@ export default function ItemDetailsScreen() {
     );
   };
 
+  const renderReceiptSection = () => {
+    if (!item.receiptImageUri) return null;
+
+    return (
+      <View style={commonStyles.card}>
+        <Text style={[commonStyles.subtitle, { marginBottom: 16 }]}>Receipt Photo</Text>
+        
+        <TouchableOpacity
+          onPress={() => {
+            Alert.alert(
+              'Receipt Photo',
+              'View full-size receipt photo',
+              [
+                { text: 'OK' }
+              ]
+            );
+          }}
+        >
+          <Image
+            source={{ uri: item.receiptImageUri }}
+            style={{
+              width: '100%',
+              height: 200,
+              borderRadius: 8,
+              backgroundColor: colors.cardBackground,
+            }}
+            resizeMode="cover"
+          />
+        </TouchableOpacity>
+        
+        <Text style={[commonStyles.textSecondary, { marginTop: 8, textAlign: 'center' }]}>
+          Tap to view full size
+        </Text>
+      </View>
+    );
+  };
+
   const renderDetailsSection = () => {
     return (
       <View style={commonStyles.card}>
@@ -179,6 +216,9 @@ export default function ItemDetailsScreen() {
           {/* Status Section */}
           {renderStatusSection()}
 
+          {/* Receipt Section */}
+          {renderReceiptSection()}
+
           {/* Details Section */}
           {renderDetailsSection()}
 
@@ -186,13 +226,7 @@ export default function ItemDetailsScreen() {
           <View style={{ gap: 16, marginTop: 24 }}>
             <TouchableOpacity
               style={[buttonStyles.secondary, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}
-              onPress={() => {
-                Alert.alert(
-                  'Edit Item',
-                  'Editing functionality will be available in a future update.',
-                  [{ text: 'OK' }]
-                );
-              }}
+              onPress={() => router.push(`/edit-item/${item.id}`)}
             >
               <Icon name="create" size={20} color={colors.text} style={{ marginRight: 8 }} />
               <Text style={buttonStyles.textSecondary}>Edit Item</Text>

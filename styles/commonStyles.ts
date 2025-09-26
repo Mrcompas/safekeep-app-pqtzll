@@ -167,4 +167,11 @@ export const commonStyles = StyleSheet.create({
     marginBottom: 32,
     lineHeight: 24,
   },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  cardBackground: colors.backgroundAlt,
 });

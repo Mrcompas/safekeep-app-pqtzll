@@ -9,11 +9,14 @@ import {
   requestNotificationPermissions,
   getScheduledNotifications 
 } from '../utils/notifications';
+import { useAuth } from '../hooks/useAuth';
+import { router } from 'expo-router';
 import Icon from '../components/Icon';
 
 export default function SettingsScreen() {
   console.log('SettingsScreen rendered');
 
+  const { authState, logout } = useAuth();
   const [notificationsEnabled, setNotificationsEnabledState] = useState(true);
   const [scheduledCount, setScheduledCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -63,6 +66,29 @@ export default function SettingsScreen() {
       console.error('Error toggling notifications:', error);
       Alert.alert('Error', 'Failed to update notification settings.');
     }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out? Your data will remain on this device.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+              Alert.alert('Signed Out', 'You have been signed out successfully.');
+            } catch (error) {
+              console.error('Logout error:', error);
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const renderSettingCard = (
@@ -122,6 +148,55 @@ export default function SettingsScreen() {
           <Text style={[commonStyles.textSecondary, { marginBottom: 32 }]}>
             Customize your SafeKeep experience and manage your preferences.
           </Text>
+
+          {/* Account Section */}
+          {authState.isAuthenticated && authState.user ? (
+            <>
+              <Text style={[commonStyles.subtitle, { marginBottom: 16, color: colors.textSecondary }]}>
+                Account
+              </Text>
+              
+              {renderSettingCard(
+                'person-circle',
+                'Signed in as',
+                authState.user.email,
+                colors.primary
+              )}
+
+              {renderSettingCard(
+                'log-out',
+                'Sign Out',
+                'Sign out of your SafeKeep account',
+                colors.error,
+                <Icon name="chevron-forward" size={20} color={colors.textSecondary} />,
+                handleLogout
+              )}
+            </>
+          ) : (
+            <>
+              <Text style={[commonStyles.subtitle, { marginBottom: 16, color: colors.textSecondary }]}>
+                Account
+              </Text>
+              
+              {renderSettingCard(
+                'person-add',
+                'Create Account',
+                'Sign up to sync your data across devices',
+                colors.primary,
+                <Icon name="chevron-forward" size={20} color={colors.textSecondary} />,
+                () => router.push('/auth/signup')
+              )}
+
+              {renderSettingCard(
+                'log-in',
+                'Sign In',
+                'Sign in to your existing SafeKeep account',
+                colors.accent,
+                <Icon name="chevron-forward" size={20} color={colors.textSecondary} />,
+                () => router.push('/auth/login')
+              )}
+            </>
+          )}
 
           {/* Notifications Section */}
           <Text style={[commonStyles.subtitle, { marginBottom: 16, color: colors.textSecondary }]}>
@@ -190,9 +265,9 @@ export default function SettingsScreen() {
           )}
 
           {renderSettingCard(
-            'camera',
+            'document-text',
             'Receipt Scanning',
-            'Automatically extract warranty information from receipt photos.',
+            'Automatically extract warranty information from receipt photos using AI.',
             colors.textSecondary
           )}
         </View>

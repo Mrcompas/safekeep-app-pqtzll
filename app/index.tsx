@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, RefreshControl, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, TextInput, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { commonStyles, colors } from '../styles/commonStyles';
 import { Item } from '../types/item';
-import { getItems } from '../utils/storage';
+import { getItems, getUserItems } from '../utils/storage';
+import { useAuth } from '../hooks/useAuth';
 import { calculateItemWarrantyStatus, getDaysRemainingText } from '../utils/warrantyUtils';
 import Icon from '../components/Icon';
 import EmptyState from '../components/EmptyState';
@@ -14,6 +15,7 @@ import { router } from 'expo-router';
 export default function HomeScreen() {
   console.log('HomeScreen rendered');
 
+  const { authState } = useAuth();
   const [items, setItems] = useState<Item[]>([]);
   const [filteredItems, setFilteredItems] = useState<Item[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,10 +25,21 @@ export default function HomeScreen() {
   const loadItems = async () => {
     try {
       console.log('Loading items...');
-      const savedItems = await getItems();
+      let savedItems: Item[];
+      
+      if (authState.isAuthenticated && authState.user) {
+        // Load user-specific items if logged in
+        savedItems = await getUserItems(authState.user.id);
+        console.log('Loaded user items:', savedItems.length);
+      } else {
+        // Load all items (including local items) if not logged in
+        const allItems = await getItems();
+        savedItems = allItems.filter(item => !item.userId); // Only show items without userId
+        console.log('Loaded local items:', savedItems.length);
+      }
+      
       setItems(savedItems);
       setFilteredItems(savedItems);
-      console.log('Loaded items:', savedItems.length);
     } catch (error) {
       console.error('Error loading items:', error);
     } finally {
@@ -53,11 +66,11 @@ export default function HomeScreen() {
     }
   }, [searchQuery, items]);
 
-  // Load items when screen comes into focus
+  // Load items when screen comes into focus or auth state changes
   useFocusEffect(
     React.useCallback(() => {
       loadItems();
-    }, [])
+    }, [authState.isAuthenticated, authState.user])
   );
 
   const clearSearch = () => {
@@ -96,6 +109,32 @@ export default function HomeScreen() {
         onPress={() => router.push(`/item/${item.id}`)}
       >
         <View style={[commonStyles.row, { alignItems: 'flex-start' }]}>
+          {/* Receipt thumbnail */}
+          {item.receiptImageUri && (
+            <View style={{ marginRight: 12 }}>
+              <Image
+                source={{ uri: item.receiptImageUri }}
+                style={{
+                  width: 50,
+                  height: 50,
+                  borderRadius: 8,
+                  backgroundColor: colors.cardBackground,
+                }}
+                resizeMode="cover"
+              />
+              <View style={{
+                position: 'absolute',
+                bottom: -4,
+                right: -4,
+                backgroundColor: colors.primary,
+                borderRadius: 8,
+                padding: 2,
+              }}>
+                <Icon name="receipt" size={12} color={colors.background} />
+              </View>
+            </View>
+          )}
+          
           <View style={{ flex: 1 }}>
             <Text style={[commonStyles.subtitle, { marginBottom: 4 }]}>
               {item.productName}

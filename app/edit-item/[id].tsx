@@ -1,24 +1,26 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Alert, KeyboardAvoidingView, Platform, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { Item, ItemFormData } from '../types/item';
-import { saveItem } from '../utils/storage';
-import { scheduleWarrantyNotification } from '../utils/notifications';
-import { showImagePickerOptions } from '../utils/camera';
-import { useAuth } from '../hooks/useAuth';
-import { commonStyles, colors, buttonStyles } from '../styles/commonStyles';
-import TextInput from '../components/TextInput';
-import Button from '../components/Button';
-import DatePicker from '../components/DatePicker';
-import WarrantySelector from '../components/WarrantySelector';
-import Icon from '../components/Icon';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Item, ItemFormData } from '../../types/item';
+import { getItems, updateItem } from '../../utils/storage';
+import { scheduleWarrantyNotification, cancelWarrantyNotification } from '../../utils/notifications';
+import { showImagePickerOptions } from '../../utils/camera';
+import { useAuth } from '../../hooks/useAuth';
+import { commonStyles, colors, buttonStyles } from '../../styles/commonStyles';
+import TextInput from '../../components/TextInput';
+import Button from '../../components/Button';
+import DatePicker from '../../components/DatePicker';
+import WarrantySelector from '../../components/WarrantySelector';
+import Icon from '../../components/Icon';
 
-export default function AddScreen() {
-  console.log('AddScreen rendered');
+export default function EditItemScreen() {
+  console.log('EditItemScreen rendered');
 
+  const { id } = useLocalSearchParams();
   const { authState } = useAuth();
+  const [item, setItem] = useState<Item | null>(null);
   const [formData, setFormData] = useState<ItemFormData>({
     productName: '',
     purchaseDate: new Date(),
@@ -27,6 +29,45 @@ export default function AddScreen() {
     receiptImageUri: undefined,
   });
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadItem();
+  }, [id]);
+
+  const loadItem = async () => {
+    try {
+      console.log('Loading item for editing:', id);
+      const items = await getItems();
+      const foundItem = items.find(item => item.id === id);
+      
+      if (foundItem) {
+        setItem(foundItem);
+        setFormData({
+          productName: foundItem.productName,
+          purchaseDate: foundItem.purchaseDate,
+          warrantyLength: foundItem.warrantyLength,
+          storeName: foundItem.storeName,
+          receiptImageUri: foundItem.receiptImageUri,
+        });
+      } else {
+        Alert.alert(
+          'Item Not Found',
+          'The item you are trying to edit could not be found.',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+      }
+    } catch (error) {
+      console.error('Error loading item:', error);
+      Alert.alert(
+        'Error',
+        'Failed to load item details. Please try again.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const validateForm = (): boolean => {
     if (!formData.productName.trim()) {
@@ -49,71 +90,59 @@ export default function AddScreen() {
   };
 
   const handleSave = async () => {
-    if (!validateForm()) return;
+    if (!item || !validateForm()) return;
 
     setSaving(true);
     try {
-      console.log('Saving item:', formData);
+      console.log('Updating item:', formData);
 
-      const newItem: Item = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      const updatedItem: Item = {
+        ...item,
         productName: formData.productName.trim(),
         purchaseDate: formData.purchaseDate,
         warrantyLength: formData.warrantyLength,
         storeName: formData.storeName.trim(),
         receiptImageUri: formData.receiptImageUri,
-        userId: authState.user?.id, // Associate with current user if logged in
-        createdAt: new Date(),
         updatedAt: new Date(),
       };
 
-      await saveItem(newItem);
-      console.log('Item saved successfully');
+      await updateItem(updatedItem);
+      console.log('Item updated successfully');
 
-      // Schedule notification for warranty expiration
-      try {
-        const expirationDate = new Date(newItem.purchaseDate);
-        expirationDate.setMonth(expirationDate.getMonth() + newItem.warrantyLength);
-        
-        const notificationId = await scheduleWarrantyNotification(
-          newItem.id,
-          newItem.productName,
-          expirationDate
-        );
-        
-        if (notificationId) {
-          console.log('Notification scheduled for item:', newItem.productName);
+      // Update notification if warranty details changed
+      if (item.warrantyLength !== formData.warrantyLength || 
+          item.purchaseDate.getTime() !== formData.purchaseDate.getTime()) {
+        try {
+          // Cancel old notification
+          await cancelWarrantyNotification(item.id);
+          
+          // Schedule new notification
+          const expirationDate = new Date(formData.purchaseDate);
+          expirationDate.setMonth(expirationDate.getMonth() + formData.warrantyLength);
+          
+          const notificationId = await scheduleWarrantyNotification(
+            item.id,
+            formData.productName,
+            expirationDate
+          );
+          
+          if (notificationId) {
+            console.log('Notification updated for item:', formData.productName);
+          }
+        } catch (notificationError) {
+          console.error('Error updating notification:', notificationError);
+          // Don't fail the save if notification scheduling fails
         }
-      } catch (notificationError) {
-        console.error('Error scheduling notification:', notificationError);
-        // Don't fail the save if notification scheduling fails
       }
 
       Alert.alert(
         'Success',
-        'Item saved successfully!',
-        [
-          {
-            text: 'Add Another',
-            onPress: () => {
-              setFormData({
-                productName: '',
-                purchaseDate: new Date(),
-                warrantyLength: 12,
-                storeName: '',
-                receiptImageUri: undefined,
-              });
-            },
-          },
-          {
-            text: 'View Items',
-            onPress: () => router.push('/'),
-          },
-        ]
+        'Item updated successfully!',
+        [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (error) {
-      console.error('Error saving item:', error);
-      Alert.alert('Error', 'Failed to save item. Please try again.');
+      console.error('Error updating item:', error);
+      Alert.alert('Error', 'Failed to update item. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -149,7 +178,16 @@ export default function AddScreen() {
   };
 
   const handleCancel = () => {
-    if (formData.productName || formData.storeName || formData.receiptImageUri) {
+    if (!item) return;
+
+    const hasChanges = 
+      formData.productName !== item.productName ||
+      formData.storeName !== item.storeName ||
+      formData.warrantyLength !== item.warrantyLength ||
+      formData.purchaseDate.getTime() !== item.purchaseDate.getTime() ||
+      formData.receiptImageUri !== item.receiptImageUri;
+
+    if (hasChanges) {
       Alert.alert(
         'Discard Changes',
         'Are you sure you want to discard your changes?',
@@ -167,6 +205,33 @@ export default function AddScreen() {
     }
   };
 
+  if (loading) {
+    return (
+      <SafeAreaView style={commonStyles.container}>
+        <View style={[commonStyles.container, commonStyles.center]}>
+          <Text style={commonStyles.text}>Loading item...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!item) {
+    return (
+      <SafeAreaView style={commonStyles.container}>
+        <View style={[commonStyles.container, commonStyles.center]}>
+          <Icon name="alert-circle" size={60} color={colors.error} style={{ marginBottom: 16 }} />
+          <Text style={commonStyles.emptyStateText}>Item Not Found</Text>
+          <TouchableOpacity
+            style={[buttonStyles.primary, { marginTop: 24 }]}
+            onPress={() => router.back()}
+          >
+            <Text style={buttonStyles.text}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={commonStyles.container}>
       <KeyboardAvoidingView 
@@ -179,9 +244,19 @@ export default function AddScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={{ paddingBottom: 40 }}>
-            <Text style={commonStyles.title}>Add New Item</Text>
+            {/* Header */}
+            <View style={[commonStyles.row, { marginBottom: 32 }]}>
+              <TouchableOpacity onPress={handleCancel}>
+                <Icon name="arrow-back" size={24} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={[commonStyles.title, { flex: 1, textAlign: 'center', marginBottom: 0 }]}>
+                Edit Item
+              </Text>
+              <View style={{ width: 24 }} />
+            </View>
+
             <Text style={[commonStyles.textSecondary, { marginBottom: 32 }]}>
-              Enter the details of your product to track its warranty.
+              Update the details of your product warranty.
             </Text>
 
             <TextInput
@@ -273,7 +348,7 @@ export default function AddScreen() {
 
             <View style={{ marginTop: 32, gap: 16 }}>
               <Button
-                text={saving ? 'Saving...' : 'Save Item'}
+                text={saving ? 'Saving Changes...' : 'Save Changes'}
                 onPress={handleSave}
                 disabled={saving}
                 style={buttonStyles.primary}

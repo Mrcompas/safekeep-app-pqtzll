@@ -1,19 +1,32 @@
 
 import { useState, useEffect } from 'react';
 import { Item } from '../types/item';
-import { getItems, deleteItem as deleteItemFromStorage } from '../utils/storage';
+import { getItems, getUserItems, deleteItem as deleteItemFromStorage } from '../utils/storage';
 import { calculateItemWarrantyStatus } from '../utils/warrantyUtils';
+import { useAuth } from './useAuth';
 
 export const useWarrantyItems = () => {
+  const { authState } = useAuth();
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadItems = async () => {
     try {
       console.log('Loading warranty items...');
-      const storedItems = await getItems();
+      let storedItems: Item[];
+      
+      if (authState.isAuthenticated && authState.user) {
+        // Load user-specific items if logged in
+        storedItems = await getUserItems(authState.user.id);
+        console.log('Loaded user items:', storedItems.length);
+      } else {
+        // Load all items (including local items) if not logged in
+        const allItems = await getItems();
+        storedItems = allItems.filter(item => !item.userId); // Only show items without userId
+        console.log('Loaded local items:', storedItems.length);
+      }
+      
       setItems(storedItems);
-      console.log('Loaded warranty items:', storedItems.length);
     } catch (error) {
       console.error('Error loading warranty items:', error);
     } finally {
@@ -56,7 +69,7 @@ export const useWarrantyItems = () => {
 
   useEffect(() => {
     loadItems();
-  }, []);
+  }, [authState.isAuthenticated, authState.user]);
 
   return {
     items,
