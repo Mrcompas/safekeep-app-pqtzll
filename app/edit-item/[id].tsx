@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Alert, KeyboardAvoidingView, Platform, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -31,11 +31,7 @@ export default function EditItemScreen() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadItem();
-  }, [id]);
-
-  const loadItem = async () => {
+  const loadItem = useCallback(async () => {
     try {
       console.log('Loading item for editing:', id);
       const items = await getItems();
@@ -67,7 +63,11 @@ export default function EditItemScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    loadItem();
+  }, [loadItem]);
 
   const validateForm = (): boolean => {
     if (!formData.productName.trim()) {

@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Item } from '../types/item';
 import { getItems, getUserItems, deleteItem as deleteItemFromStorage } from '../utils/storage';
 import { calculateItemWarrantyStatus } from '../utils/warrantyUtils';
@@ -10,7 +10,7 @@ export const useWarrantyItems = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadItems = async () => {
+  const loadItems = useCallback(async () => {
     try {
       console.log('Loading warranty items...');
       let storedItems: Item[];
@@ -32,7 +32,7 @@ export const useWarrantyItems = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [authState.isAuthenticated, authState.user]);
 
   const deleteItem = async (itemId: string) => {
     try {
@@ -69,7 +69,7 @@ export const useWarrantyItems = () => {
 
   useEffect(() => {
     loadItems();
-  }, [authState.isAuthenticated, authState.user]);
+  }, [loadItems]);
 
   return {
     items,

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, RefreshControl, TextInput, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -22,7 +22,7 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadItems = async () => {
+  const loadItems = useCallback(async () => {
     try {
       console.log('Loading items...');
       let savedItems: Item[];
@@ -45,7 +45,7 @@ export default function HomeScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [authState.isAuthenticated, authState.user]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -70,7 +70,7 @@ export default function HomeScreen() {
   useFocusEffect(
     React.useCallback(() => {
       loadItems();
-    }, [authState.isAuthenticated, authState.user])
+    }, [loadItems])
   );
 
   const clearSearch = () => {
