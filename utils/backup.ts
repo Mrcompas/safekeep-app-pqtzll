@@ -1,5 +1,6 @@
 
 import * as FileSystem from 'expo-file-system';
+import { documentDirectory } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { Item, BackupData } from '../types/item';
@@ -47,7 +48,7 @@ export const exportToCSV = async (items: Item[]): Promise<string> => {
     const csvContent = [headers, ...rows].join('\n');
     
     const fileName = `SafeKeep_Export_${new Date().toISOString().split('T')[0]}.csv`;
-    const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+    const fileUri = `${documentDirectory}${fileName}`;
     
     await FileSystem.writeAsStringAsync(fileUri, csvContent, {
       encoding: 'utf8',
@@ -68,7 +69,7 @@ export const exportToPDF = async (items: Item[]): Promise<string> => {
     
     const htmlContent = generatePDFHTML(items);
     const fileName = `SafeKeep_Export_${new Date().toISOString().split('T')[0]}.html`;
-    const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+    const fileUri = `${documentDirectory}${fileName}`;
     
     await FileSystem.writeAsStringAsync(fileUri, htmlContent, {
       encoding: 'utf8',
@@ -188,7 +189,7 @@ export const createBackup = async (items: Item[]): Promise<BackupData> => {
     };
 
     const fileName = `SafeKeep_Backup_${new Date().toISOString().split('T')[0]}.json`;
-    const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+    const fileUri = `${documentDirectory}${fileName}`;
     
     await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(backupData, null, 2), {
       encoding: 'utf8',
